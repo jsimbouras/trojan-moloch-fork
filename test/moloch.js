@@ -5,11 +5,7 @@
 // - events
 
 const Moloch = artifacts.require('./Moloch')
-const GuildBank = artifacts.require('./GuildBank')
-//const Token = artifacts.require('./Token')
-
-const GnosisSafe = artifacts.require("./GnosisSafePersonalEdition.sol")
-const ProxyFactory = artifacts.require("./ProxyFactory.sol")
+const CurvedGuildBank = artifacts.require('./CurvedGuildBank')
 
 const utils = require('./utils')
 const safeUtils = require('./utilsPersonalSafe')
@@ -92,31 +88,29 @@ async function moveForwardPeriods(periods) {
   return true
 }
 
-let moloch, guildBank, token
-let proxyFactory, gnosisSafeMasterCopy, gnosisSafe, lw, executor
+let moloch, curvedGuildBank
+let lw, executor
 let proposal1, proposal2
-
-// used by gnosis safe
-const CALL = 0
 
 const initSummonerBalance = 100
 
-contract('Moloch', accounts => {
+const msgValue = web3.utils.toWei('100', 'ether')
+
+contract('Moloch fork', accounts => {
   let snapshotId
 
   // VERIFY SUBMIT PROPOSAL
-  const verifySubmitProposal = async (proposal, proposalIndex, proposer, options) => {
+  const verifySubmitProposal = async (proposal, proposalIndex, options) => {
     const initialTotalSharesRequested = options.initialTotalSharesRequested ? options.initialTotalSharesRequested : 0
     const initialTotalShares = options.initialTotalShares ? options.initialTotalShares : 0
     const initialProposalLength = options.initialProposalLength ? options.initialProposalLength : 0
     const initialMolochBalance = options.initialMolochBalance ? options.initialMolochBalance : 0
-    const initialApplicantBalance = options.initialApplicantBalance ? options.initialApplicantBalance : 0
-    const initialProposerBalance = options.initialProposerBalance ? options.initialProposerBalance : 0
 
     const expectedStartingPeriod = options.expectedStartingPeriod ? options.expectedStartingPeriod : 1
 
+    const msgValue = options.msgValue ? options.msgValue : 0
+
     const proposalData = await moloch.proposalQueue.call(proposalIndex)
-    assert.equal(proposalData.proposer, proposer)
     assert.equal(proposalData.applicant, proposal.applicant)
     if (typeof proposal.sharesRequested == 'number') {
       assert.equal(proposalData.sharesRequested, proposal.sharesRequested)
@@ -133,6 +127,13 @@ contract('Moloch', accounts => {
     assert.equal(proposalData.details, proposal.details)
     assert.equal(proposalData.maxTotalSharesAtYesVote, 0)
 
+    if(msgValue > 0) {
+      assert.equal(proposalData.depoistedETH, true)
+    }
+    else {
+      assert.equal(proposalData.depoistedETH, false)
+    }
+
     const totalSharesRequested = await moloch.totalSharesRequested()
     if (typeof proposal.sharesRequested == 'number') {
       assert.equal(totalSharesRequested, proposal.sharesRequested + initialTotalSharesRequested)
@@ -146,16 +147,12 @@ contract('Moloch', accounts => {
     const proposalQueueLength = await moloch.getProposalQueueLength()
     assert.equal(proposalQueueLength, initialProposalLength + 1)
 
-    const molochBalance = await token.balanceOf(moloch.address)
-    assert.equal(molochBalance, initialMolochBalance + proposal.tokenTribute + config.PROPOSAL_DEPOSIT)
+    const molochBalance = await curvedGuildBank.balanceOf(moloch.address)
+    assert.equal(molochBalance, initialMolochBalance + proposal.tokenTribute)
 
-    const applicantBalance = await token.balanceOf(proposal.applicant)
-    assert.equal(applicantBalance, initialApplicantBalance - proposal.tokenTribute)
-
-    const proposerBalance = await token.balanceOf(proposer)
-    assert.equal(proposerBalance, initialProposerBalance - config.PROPOSAL_DEPOSIT)
+    //TODO: check msg.sender ETH balance
   }
-
+/*
   // VERIFY SUBMIT VOTE
   const verifySubmitVote = async (proposal, proposalIndex, memberAddress, expectedVote, options) => {
     const initialYesVotes = options.initialYesVotes ? options.initialYesVotes : 0
@@ -257,15 +254,11 @@ contract('Moloch', accounts => {
     const memberByNewDelegateKey = await moloch.memberAddressByDelegateKey(newDelegateKey)
     assert.equal(memberByNewDelegateKey, memberAddress)
   }
-
+*/
   before('deploy contracts', async () => {
-    moloch = await Moloch.deployed()
+    moloch = await Moloch.new(accounts[0], "Curved Moloch", "CM", 17280, 35, 35, 5, 3, 1, 1, 90)
     const guildBankAddress = await moloch.guildBank()
-    guildBank = await GuildBank.at(guildBankAddress)
-    token = await Token.deployed()
-
-    proxyFactory = await ProxyFactory.deployed()
-    gnosisSafeMasterCopy = await GnosisSafe.deployed()
+    guildBank = await CurvedGuildBank.at(guildBankAddress)
   })
 
   beforeEach(async () => {
@@ -283,7 +276,6 @@ contract('Moloch', accounts => {
 
     processor = accounts[9]
 
-    token.transfer(summoner, initSummonerBalance, { from: creator })
   })
 
   afterEach(async () => {
@@ -293,17 +285,11 @@ contract('Moloch', accounts => {
   it('verify deployment parameters', async () => {
     const now = await blockTime()
 
-    const approvedTokenAddress = await moloch.approvedToken()
-    assert.equal(approvedTokenAddress, token.address)
-
-    const guildBankAddress = await moloch.guildBank()
-    assert.equal(guildBankAddress, guildBank.address)
+    const curvedGuildBankAddress = await moloch.guildBank()
+    assert.equal(curvedGuildBankAddress, curvedGuildBank.address)
 
     const guildBankOwner = await guildBank.owner()
     assert.equal(guildBankOwner, moloch.address)
-
-    const guildBankToken = await guildBank.approvedToken()
-    assert.equal(guildBankToken, token.address)
 
     const periodDuration = await moloch.periodDuration()
     assert.equal(+periodDuration, config.PERIOD_DURATION_IN_SECONDS)
@@ -323,9 +309,6 @@ contract('Moloch', accounts => {
     const dilutionBound = await moloch.dilutionBound()
     assert.equal(+dilutionBound, config.DILUTION_BOUND)
 
-    const processingReward = await moloch.processingReward()
-    assert.equal(+processingReward, config.PROCESSING_REWARD)
-
     const currentPeriod = await moloch.getCurrentPeriod()
     assert.equal(+currentPeriod, 0)
 
@@ -340,32 +323,22 @@ contract('Moloch', accounts => {
 
     const totalShares = await moloch.totalShares()
     assert.equal(+totalShares, 1)
-
-    // confirm initial token supply and summoner balance
-    const tokenSupply = await token.totalSupply()
-    assert.equal(+tokenSupply.toString(), config.TOKEN_SUPPLY)
-    const summonerBalance = await token.balanceOf(summoner)
-    assert.equal(+summonerBalance.toString(), initSummonerBalance)
-    const creatorBalance = await token.balanceOf(creator)
-    assert.equal(creatorBalance, config.TOKEN_SUPPLY - initSummonerBalance)
   })
 
   describe('submitProposal', () => {
     beforeEach(async () => {
-      await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
-      await token.approve(moloch.address, 10, { from: summoner })
-      await token.approve(moloch.address, proposal1.tokenTribute, { from: proposal1.applicant })
     })
 
     it('happy case', async () => {
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
-      await verifySubmitProposal(proposal1, 0, summoner, {
+      await moloch.submitProposal(proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: proposal1.applicant })
+      await verifySubmitProposal(proposal1, 0, {
         initialTotalShares: 1,
         initialApplicantBalance: proposal1.tokenTribute,
-        initialProposerBalance: initSummonerBalance
+        initialProposerBalance: initSummonerBalance,
+        msgValue: msgValue
       })
     })
-
+/*
     describe('uint overflow boundary', () => {
       it('require fail - uint overflow', async () => {
         proposal1.sharesRequested = _1e18
@@ -420,9 +393,9 @@ contract('Moloch', accounts => {
         initialApplicantBalance: proposal1.tokenTribute,
         initialProposerBalance: initSummonerBalance
       })
-    })
+    })*/
   })
-
+/*
   describe('submitVote', () => {
     beforeEach(async () => {
       await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
@@ -1173,5 +1146,5 @@ contract('Moloch', accounts => {
         assert.equal(safeBalanceAfterRagequit, 50) // 100 eth & 2 shares at time of ragequit
       })
     })
-  })
+  })*/
 })
