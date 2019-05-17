@@ -160,6 +160,11 @@ contract Moloch {
     {
         require(msg.sender != address(0), "Curved::submitProposal - applicant cannot be 0");
 
+        //make sure eth value sufficient to buy the tributed tokens
+        if(tokenTribute > 0) {
+            require(guildBank.calculatePurchaseReturn(tokenTribute) <= msg.value, "Did not send enough ether to buy tributed tokens");
+        }
+
         // Make sure we won't run into overflows when doing calculations with shares.
         // Note that totalShares + totalSharesRequested + sharesRequested is an upper bound
         // on the number of shares that can exist until this proposal has been processed.
@@ -191,7 +196,7 @@ contract Moloch {
         });
 
         // if sender deposit ETH collect proposal deposit (ETH) and store it in the Moloch until the proposal is processed
-        if(msg.value > 0) {
+        if(msg.value > 0 && tokenTribute > 0) {
             proposal.depositedETH = true;
             proposal.value = msg.value;
             proposal.tokenTribute = tokenTribute;

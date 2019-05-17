@@ -12,14 +12,14 @@ const safeUtils = require('./utilsPersonalSafe')
 
 const config = process.env.target != 'mainnet' ? require('../migrations/config.json').test : require('../migrations/config.json').mainnet
 
-console.log(process.env.target)
+console.log("environment: ", process.env.target)
 console.log(config)
 
 const abi = require('web3-eth-abi')
 
 const HttpProvider = require(`ethjs-provider-http`)
 const EthRPC = require(`ethjs-rpc`)
-const ethRPC = new EthRPC(new HttpProvider('http://localhost:8545'))
+const ethRPC = new EthRPC(new HttpProvider('http://localhost:7545'))
 
 const BigNumber = web3.BigNumber
 const BN = web3.utils.BN
@@ -90,11 +90,11 @@ async function moveForwardPeriods(periods) {
 
 let moloch, curvedGuildBank
 let lw, executor
-let proposal1, proposal2
+let investorProposal, artistProposal, proposal2
 
 const initSummonerBalance = 100
 
-const msgValue = web3.utils.toWei('100', 'ether')
+const msgValue = web3.utils.toWei('20', 'ether')
 
 contract('Moloch fork', accounts => {
   let snapshotId
@@ -104,11 +104,12 @@ contract('Moloch fork', accounts => {
     const initialTotalSharesRequested = options.initialTotalSharesRequested ? options.initialTotalSharesRequested : 0
     const initialTotalShares = options.initialTotalShares ? options.initialTotalShares : 0
     const initialProposalLength = options.initialProposalLength ? options.initialProposalLength : 0
+    const initialMolochTokenBalance = options.initialMolochTokenBalance ? options.initialMolochTokenBalance : 0
     const initialMolochBalance = options.initialMolochBalance ? options.initialMolochBalance : 0
 
     const expectedStartingPeriod = options.expectedStartingPeriod ? options.expectedStartingPeriod : 1
 
-    const msgValue = options.msgValue ? options.msgValue : 0
+    const ethValue = options.ethValue ? options.ethValue : 0
 
     const proposalData = await moloch.proposalQueue.call(proposalIndex)
     assert.equal(proposalData.applicant, proposal.applicant)
@@ -127,11 +128,12 @@ contract('Moloch fork', accounts => {
     assert.equal(proposalData.details, proposal.details)
     assert.equal(proposalData.maxTotalSharesAtYesVote, 0)
 
-    if(msgValue > 0) {
-      assert.equal(proposalData.depoistedETH, true)
+    
+    if(ethValue > 0 && proposalData.tokenTribute > 0) {
+      assert.equal(proposalData.depositedETH, true)      
     }
     else {
-      assert.equal(proposalData.depoistedETH, false)
+      assert.equal(proposalData.depositedETH, false)
     }
 
     const totalSharesRequested = await moloch.totalSharesRequested()
@@ -147,8 +149,11 @@ contract('Moloch fork', accounts => {
     const proposalQueueLength = await moloch.getProposalQueueLength()
     assert.equal(proposalQueueLength, initialProposalLength + 1)
 
-    const molochBalance = await curvedGuildBank.balanceOf(moloch.address)
-    assert.equal(molochBalance, initialMolochBalance + proposal.tokenTribute)
+    const molochTokenBalance = await curvedGuildBank.balanceOf(moloch.address)
+    assert.equal(molochTokenBalance.toNumber(), initialMolochTokenBalance) 
+
+    const molochBalace = await web3.eth.getBalance(moloch.address)
+    assert.equal(molochBalace, parseInt(initialMolochBalance) + parseInt(ethValue));
 
     //TODO: check msg.sender ETH balance
   }
@@ -258,7 +263,7 @@ contract('Moloch fork', accounts => {
   before('deploy contracts', async () => {
     moloch = await Moloch.new(accounts[0], "Curved Moloch", "CM", 17280, 35, 35, 5, 3, 1, 1, 90)
     const guildBankAddress = await moloch.guildBank()
-    guildBank = await CurvedGuildBank.at(guildBankAddress)
+    curvedGuildBank = await CurvedGuildBank.at(guildBankAddress)
   })
 
   beforeEach(async () => {
@@ -267,9 +272,16 @@ contract('Moloch fork', accounts => {
     creator = accounts[0]
     summoner = accounts[1]
 
-    proposal1 = {
+    investorProposal = {
       applicant: accounts[2],
-      tokenTribute: 100,
+      tokenTribute: 5,
+      sharesRequested: 1,
+      details: "all hail moloch"
+    }
+
+    artistProposal = {
+      applicant: accounts[3],
+      tokenTribute: 5,
       sharesRequested: 1,
       details: "all hail moloch"
     }
@@ -287,13 +299,13 @@ contract('Moloch fork', accounts => {
 
     const curvedGuildBankAddress = await moloch.guildBank()
     assert.equal(curvedGuildBankAddress, curvedGuildBank.address)
-
-    const guildBankOwner = await guildBank.owner()
+    
+    const guildBankOwner = await curvedGuildBank.owner()
     assert.equal(guildBankOwner, moloch.address)
-
+    
     const periodDuration = await moloch.periodDuration()
     assert.equal(+periodDuration, config.PERIOD_DURATION_IN_SECONDS)
-
+    
     const votingPeriodLength = await moloch.votingPeriodLength()
     assert.equal(+votingPeriodLength, config.VOTING_DURATON_IN_PERIODS)
 
@@ -303,99 +315,83 @@ contract('Moloch fork', accounts => {
     const abortWindow = await moloch.abortWindow()
     assert.equal(+abortWindow, config.ABORT_WINDOW_IN_PERIODS)
 
-    const proposalDeposit = await moloch.proposalDeposit()
-    assert.equal(+proposalDeposit, config.PROPOSAL_DEPOSIT)
-
     const dilutionBound = await moloch.dilutionBound()
     assert.equal(+dilutionBound, config.DILUTION_BOUND)
 
     const currentPeriod = await moloch.getCurrentPeriod()
     assert.equal(+currentPeriod, 0)
-
-    const summonerData = await moloch.members(config.SUMMONER)
-    assert.equal(summonerData.delegateKey.toLowerCase(), config.SUMMONER) // delegateKey matches
+    
+    const summonerData = await moloch.members(creator)
+    assert.equal(summonerData.delegateKey, creator) // delegateKey matches
     assert.equal(summonerData.shares, 1)
     assert.equal(summonerData.exists, true)
     assert.equal(summonerData.highestIndexYesVote, 0)
 
-    const summonerAddressByDelegateKey = await moloch.memberAddressByDelegateKey(config.SUMMONER)
-    assert.equal(summonerAddressByDelegateKey.toLowerCase(), config.SUMMONER)
+    const summonerAddressByDelegateKey = await moloch.memberAddressByDelegateKey(creator)
+    assert.equal(summonerAddressByDelegateKey, creator)
 
     const totalShares = await moloch.totalShares()
     assert.equal(+totalShares, 1)
+    
   })
-
+  
   describe('submitProposal', () => {
     beforeEach(async () => {
     })
 
-    it('happy case', async () => {
-      await moloch.submitProposal(proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: proposal1.applicant })
-      await verifySubmitProposal(proposal1, 0, {
-        initialTotalShares: 1,
-        initialApplicantBalance: proposal1.tokenTribute,
-        initialProposerBalance: initSummonerBalance,
-        msgValue: msgValue
+    describe('Investor', () => {
+      it('Investor happy case', async () => { 
+        const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
+        await verifySubmitProposal(investorProposal, 0, {
+          initialTotalShares: 1,
+          initialApplicantBalance: investorProposal.tokenTribute,
+          initialMolochTokenBalance: 0,
+          initialMolochBalance: initialMolochBalance,
+          ethValue: msgValue
+        })
       })
-    })
-/*
+
+      it('require fail - insufficient deposited ETH', async () => {    
+        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: 0 }).should.be.rejectedWith('Did not send enough ether to buy tributed tokens')
+      })
+      
+    });
+
     describe('uint overflow boundary', () => {
       it('require fail - uint overflow', async () => {
-        proposal1.sharesRequested = _1e18
-        await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner }).should.be.rejectedWith('too many shares requested')
+        investorProposal.sharesRequested = _1e18
+        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue }).should.be.rejectedWith('too many shares requested')
       })
 
       it('success - request 1 less share than the overflow limit', async () => {
-        proposal1.sharesRequested = _1e18.sub(new BN(1)) // 1 less
-        await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
-        await verifySubmitProposal(proposal1, 0, summoner, {
+        const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+        investorProposal.sharesRequested = _1e18.sub(new BN(1)) // 1 less
+        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
+        await verifySubmitProposal(investorProposal, 0, {
           initialTotalShares: 1,
-          initialApplicantBalance: proposal1.tokenTribute,
-          initialProposerBalance: initSummonerBalance
+          initialApplicantBalance: investorProposal.tokenTribute,
+          initialMolochTokenBalance: 0,
+          initialMolochBalance: initialMolochBalance,
+          ethValue: msgValue
         })
       })
     })
 
-    it('require fail - insufficient proposal deposit', async () => {
-      await token.decreaseAllowance(moloch.address, 1, { from: summoner })
-
-      // SafeMath reverts in ERC20.transferFrom
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details).should.be.rejectedWith(SolRevert)
-    })
-
-    it('require fail - insufficient applicant tokens', async () => {
-      await token.decreaseAllowance(moloch.address, 1, { from: proposal1.applicant })
-
-      // SafeMath reverts in ERC20.transferFrom
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details).should.be.rejectedWith(SolRevert)
-    })
-
-    it('modifier - delegate', async () => {
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: creator }).should.be.rejectedWith('not a delegate')
-    })
-
-    it('edge case - proposal tribute is 0', async () => {
-      const unspentTribute = proposal1.tokenTribute
-      proposal1.tokenTribute = 0
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
-      await verifySubmitProposal(proposal1, 0, summoner, {
-        initialTotalShares: 1,
-        initialApplicantBalance: unspentTribute, // should still have all tribute funds
-        initialProposerBalance: initSummonerBalance
-      })
-    })
-
     it('edge case - shares requested is 0', async () => {
-      proposal1.sharesRequested = 0
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
-      await verifySubmitProposal(proposal1, 0, summoner, {
+      const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+      investorProposal.sharesRequested = 0
+      await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
+      await verifySubmitProposal(investorProposal, 0,{
         initialTotalShares: 1,
-        initialApplicantBalance: proposal1.tokenTribute,
-        initialProposerBalance: initSummonerBalance
+        initialApplicantBalance: investorProposal.tokenTribute,
+        initialMolochTokenBalance: 0,
+        initialMolochBalance: initialMolochBalance,
+        ethValue: msgValue
       })
-    })*/
+    })
   })
-/*
+  /*
   describe('submitVote', () => {
     beforeEach(async () => {
       await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
