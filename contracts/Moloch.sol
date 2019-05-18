@@ -7,8 +7,6 @@ import "./CurvedGuildBank.sol";
 contract Moloch {
     using SafeMath for uint256;
 
-    address creator;
-
     /***************
     GLOBAL CONSTANTS
     ***************/
@@ -121,8 +119,6 @@ contract Moloch {
         require(_dilutionBound > 0, "Moloch::constructor - _dilutionBound cannot be 0");
         require(_dilutionBound <= MAX_DILUTION_BOUND, "Moloch::constructor - _dilutionBound exceeds limit");
 
-        creator = summoner;
-
         guildBank = new CurvedGuildBank(
             bcTokenName,
             bcTokenSymbol,
@@ -144,12 +140,6 @@ contract Moloch {
         totalShares = 1;
 
         emit SummonComplete(summoner, 1);
-    }
-
-    function summonerAllocate(uint256 tokenTribute) external payable {
-        require(msg.sender == creator, "Address does not have permission");
-
-        guildBank.preMint.value(msg.value)(tokenTribute);
     }
 
     /*****************
@@ -207,8 +197,6 @@ contract Moloch {
             proposal.value = msg.value;
             proposal.tokenTribute = tokenTribute;
 
-            //cast type address to address payable, does it work?
-            //require(address(this).transfer(msg.value), "Curved::submitProposal - ETH transfer failed");
             address(this).transfer(msg.value);
         }
 

@@ -331,8 +331,10 @@ contract('Moloch fork', accounts => {
     assert.equal(summonerAddressByDelegateKey, creator)
 
     const totalShares = await moloch.totalShares()
-    assert.equal(+totalShares, 1)
-    
+    assert.equal(+totalShares, 1) 
+
+    const molochTokenBalance = await curvedGuildBank.balanceOf(moloch.address)
+    assert.equal(molochTokenBalance.toNumber(), 0)    
   })
   
   describe('submitProposal', () => {
@@ -351,7 +353,7 @@ contract('Moloch fork', accounts => {
           ethValue: msgValue
         })
       })
-
+      
       it('require fail - insufficient deposited ETH', async () => {    
         await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: 0 }).should.be.rejectedWith('Did not send enough ether to buy tributed tokens')
       })
@@ -389,7 +391,7 @@ contract('Moloch fork', accounts => {
         })
       })
     });
-
+    
     describe('Artist', () => {
       it('Artist happy case', async () => { 
         const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
@@ -420,6 +422,7 @@ contract('Moloch fork', accounts => {
         artistProposal.tokenTribute = 0
       })
     })
+    
   })
   /*
   describe('submitVote', () => {

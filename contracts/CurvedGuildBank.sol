@@ -9,8 +9,6 @@ contract CurvedGuildBank is BondingCurve, Ownable {
 
     event Withdrawal(address indexed receiver, uint256 amount);
 
-    uint256 nonce = 0;
-
     // Desired Curve: Linear Progression W/ % Buy/Sell Delta
     // Ex: Sell is always 90% of buy price.
     // https://www.desmos.com/calculator/9ierxx6kjw
@@ -34,17 +32,6 @@ contract CurvedGuildBank is BondingCurve, Ownable {
         slopeNumerator = _slopeNumerator;
         slopeDenominator = _slopeDenominator;
         sellPercentage = _sellPercentage;
-    }
-
-    function preMint(uint256 tokenTribute) external payable {
-        require(nonce == 0, "access denied");
-
-        //guildBank.buy.value(msg.value)(msg.sender, proposal.applicant, proposal.tokenTribute);
-        address(this).transfer(msg.value);
-        _mint(msg.sender, tokenTribute);
-
-        //increment nonce
-        nonce++;
     }
 
     function buyIntegral(uint256 x) internal view returns (uint256) {
