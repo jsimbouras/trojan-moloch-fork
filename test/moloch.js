@@ -276,14 +276,14 @@ contract('Moloch fork', accounts => {
       applicant: accounts[2],
       tokenTribute: 5,
       sharesRequested: 1,
-      details: "all hail moloch"
+      details: "all investors hail moloch"
     }
 
     artistProposal = {
       applicant: accounts[3],
-      tokenTribute: 5,
+      tokenTribute: 0,
       sharesRequested: 1,
-      details: "all hail moloch"
+      details: "all artists hail moloch"
     }
 
     processor = accounts[9]
@@ -355,20 +355,32 @@ contract('Moloch fork', accounts => {
       it('require fail - insufficient deposited ETH', async () => {    
         await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: 0 }).should.be.rejectedWith('Did not send enough ether to buy tributed tokens')
       })
-      
-    });
 
-    describe('uint overflow boundary', () => {
-      it('require fail - uint overflow', async () => {
-        investorProposal.sharesRequested = _1e18
-        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue }).should.be.rejectedWith('too many shares requested')
+      describe('uint overflow boundary', () => {
+        it('require fail - uint overflow', async () => {
+          investorProposal.sharesRequested = _1e18
+          await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue }).should.be.rejectedWith('too many shares requested')
+        })
+  
+        it('success - request 1 less share than the overflow limit', async () => {
+          const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+          investorProposal.sharesRequested = _1e18.sub(new BN(1)) // 1 less
+          await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
+          await verifySubmitProposal(investorProposal, 0, {
+            initialTotalShares: 1,
+            initialApplicantBalance: investorProposal.tokenTribute,
+            initialMolochTokenBalance: 0,
+            initialMolochBalance: initialMolochBalance,
+            ethValue: msgValue
+          })
+        })
       })
-
-      it('success - request 1 less share than the overflow limit', async () => {
+  
+      it('edge case - shares requested is 0', async () => {
         const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
-        investorProposal.sharesRequested = _1e18.sub(new BN(1)) // 1 less
+        investorProposal.sharesRequested = 0
         await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
-        await verifySubmitProposal(investorProposal, 0, {
+        await verifySubmitProposal(investorProposal, 0,{
           initialTotalShares: 1,
           initialApplicantBalance: investorProposal.tokenTribute,
           initialMolochTokenBalance: 0,
@@ -376,18 +388,36 @@ contract('Moloch fork', accounts => {
           ethValue: msgValue
         })
       })
-    })
+    });
 
-    it('edge case - shares requested is 0', async () => {
-      const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
-      investorProposal.sharesRequested = 0
-      await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
-      await verifySubmitProposal(investorProposal, 0,{
-        initialTotalShares: 1,
-        initialApplicantBalance: investorProposal.tokenTribute,
-        initialMolochTokenBalance: 0,
-        initialMolochBalance: initialMolochBalance,
-        ethValue: msgValue
+    describe('Artist', () => {
+      it('Artist happy case', async () => { 
+        const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+        await moloch.submitProposal(artistProposal.tokenTribute, artistProposal.sharesRequested, artistProposal.details, { from: artistProposal.applicant })
+        await verifySubmitProposal(artistProposal, 0, {
+          initialTotalShares: 1,
+          initialApplicantBalance: artistProposal.tokenTribute,
+          initialMolochTokenBalance: 0,
+          initialMolochBalance: initialMolochBalance
+        })
+      })
+
+      it('success - deposit ETH', async () => {
+        const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
+        await moloch.submitProposal(artistProposal.tokenTribute, artistProposal.sharesRequested, artistProposal.details, { from: artistProposal.applicant, value: msgValue })
+        await verifySubmitProposal(artistProposal, 0, {
+          initialTotalShares: 1,
+          initialApplicantBalance: artistProposal.tokenTribute,
+          initialMolochTokenBalance: 0,
+          initialMolochBalance: initialMolochBalance,
+          ethValue: msgValue
+        })
+      })
+
+      it('require fail - deposit tribute token without ETH', async () => {  
+        artistProposal.tokenTribute = 5
+        await moloch.submitProposal(artistProposal.tokenTribute, artistProposal.sharesRequested, artistProposal.details, { from: artistProposal.applicant}).should.be.rejectedWith('Did not send enough ether to buy tributed tokens')
+        artistProposal.tokenTribute = 0
       })
     })
   })
