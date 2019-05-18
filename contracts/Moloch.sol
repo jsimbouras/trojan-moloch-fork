@@ -1,4 +1,4 @@
-pragma solidity 0.5.2;
+pragma solidity ^0.4.24;
 
 import "./oz/SafeMath.sol";
 import "./CurvedGuildBank.sol";
@@ -6,6 +6,8 @@ import "./CurvedGuildBank.sol";
 
 contract Moloch {
     using SafeMath for uint256;
+
+    address creator;
 
     /***************
     GLOBAL CONSTANTS
@@ -60,7 +62,7 @@ contract Moloch {
     }
 
     struct Proposal {
-        address payable applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
+        address applicant; // the applicant who wishes to become a member - this key will be used for withdrawals
         uint256 value; //ETH value in case deposited
         uint256 tokenTribute; //amount of tokens to mint with the deposited ETH
         uint256 sharesRequested; // the # of shares the applicant is requesting
@@ -119,6 +121,8 @@ contract Moloch {
         require(_dilutionBound > 0, "Moloch::constructor - _dilutionBound cannot be 0");
         require(_dilutionBound <= MAX_DILUTION_BOUND, "Moloch::constructor - _dilutionBound exceeds limit");
 
+        creator = summoner;
+
         guildBank = new CurvedGuildBank(
             bcTokenName,
             bcTokenSymbol,
@@ -142,8 +146,10 @@ contract Moloch {
         emit SummonComplete(summoner, 1);
     }
 
-    function() external payable {
-        getCurrentPeriod();
+    function summonerAllocate(uint256 tokenTribute) external payable {
+        require(msg.sender == creator, "Address does not have permission");
+
+        guildBank.preMint.value(msg.value)(tokenTribute);
     }
 
     /*****************

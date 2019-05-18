@@ -1,4 +1,4 @@
-pragma solidity 0.5.2;
+pragma solidity ^0.4.24;
 
 import "./oz/Ownable.sol";
 import "./oz/SafeMath.sol";
@@ -9,7 +9,7 @@ contract CurvedGuildBank is BondingCurve, Ownable {
 
     event Withdrawal(address indexed receiver, uint256 amount);
 
-    //address payable wallet;
+    uint256 nonce = 0;
 
     // Desired Curve: Linear Progression W/ % Buy/Sell Delta
     // Ex: Sell is always 90% of buy price.
@@ -34,6 +34,17 @@ contract CurvedGuildBank is BondingCurve, Ownable {
         slopeNumerator = _slopeNumerator;
         slopeDenominator = _slopeDenominator;
         sellPercentage = _sellPercentage;
+    }
+
+    function preMint(uint256 tokenTribute) external payable {
+        require(nonce == 0, "access denied");
+
+        //guildBank.buy.value(msg.value)(msg.sender, proposal.applicant, proposal.tokenTribute);
+        address(this).transfer(msg.value);
+        _mint(msg.sender, tokenTribute);
+
+        //increment nonce
+        nonce++;
     }
 
     function buyIntegral(uint256 x) internal view returns (uint256) {
@@ -64,7 +75,7 @@ contract CurvedGuildBank is BondingCurve, Ownable {
     }
 
     /// Overwrite
-    function buy(address payable processor, address payable proposer, uint256 tokens) public payable onlyOwner {
+    function buy(address processor, address proposer, uint256 tokens) public payable onlyOwner {
         uint256 spreadBefore = spread(totalSupply());
         super.buy(processor, proposer, tokens);
 
@@ -77,7 +88,7 @@ contract CurvedGuildBank is BondingCurve, Ownable {
         emit Payout(spreadPayout, now);
     }
 
-    function withdraw(address payable receiver, uint256 shares, uint256 totalShares) public onlyOwner returns (bool) {
+    function withdraw(address receiver, uint256 shares, uint256 totalShares) public onlyOwner returns (bool) {
         uint256 amount = balanceOf(address(this)).mul(shares).div(totalShares);
         emit Withdrawal(receiver, amount);
         return transfer(receiver, amount);
