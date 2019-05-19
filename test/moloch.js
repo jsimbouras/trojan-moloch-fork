@@ -440,6 +440,7 @@ contract('Moloch fork', accounts => {
     describe('investor proposal', () => {
       beforeEach(async () => {
         await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
+        await moloch.submitProposal(artistProposal.tokenTribute, artistProposal.sharesRequested, artistProposal.details, { from: artistProposal.applicant })
       })
   
       it('happy case - yes vote', async () => {
@@ -448,17 +449,27 @@ contract('Moloch fork', accounts => {
         await verifySubmitVote(investorProposal, 0, creator, 1, {
           expectedMaxSharesAtYesVote: 1
         })
+
+        await moveForwardPeriods(1)
+        await moloch.submitVote(1, 1, { from: creator })
+        await verifySubmitVote(artistProposal, 0, creator, 1, {
+          expectedMaxSharesAtYesVote: 1
+        })
       })
       
       it('happy case - no vote', async () => {
         await moveForwardPeriods(1)
         await moloch.submitVote(0, 2, { from: creator })
         await verifySubmitVote(investorProposal, 0, creator, 2, {})
+
+        await moveForwardPeriods(1)
+        await moloch.submitVote(1, 2, { from: creator })
+        await verifySubmitVote(artistProposal, 0, creator, 2, {})
       })
   
       it('require fail - proposal does not exist', async () => {
         await moveForwardPeriods(1)
-        await moloch.submitVote(1, 1, { from: creator }).should.be.rejectedWith('proposal does not exist')
+        await moloch.submitVote(2, 1, { from: creator }).should.be.rejectedWith('proposal does not exist')
       })
   
       it('require fail - voting period has not started', async () => {
