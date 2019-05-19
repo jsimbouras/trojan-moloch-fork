@@ -110,6 +110,7 @@ contract('Moloch fork', accounts => {
     const expectedStartingPeriod = options.expectedStartingPeriod ? options.expectedStartingPeriod : 1
 
     const ethValue = options.ethValue ? options.ethValue : 0
+    const tributeTokenPrice = options.tributeTokenPrice ? options.tributeTokenPrice : 0
 
     const proposalData = await moloch.proposalQueue.call(proposalIndex)
     assert.equal(proposalData.applicant, proposal.applicant)
@@ -153,7 +154,7 @@ contract('Moloch fork', accounts => {
     assert.equal(molochTokenBalance.toNumber(), initialMolochTokenBalance) 
 
     const molochBalace = await web3.eth.getBalance(moloch.address)
-    assert.equal(molochBalace, parseInt(initialMolochBalance) + parseInt(ethValue));
+    assert.equal(molochBalace, parseInt(initialMolochBalance) + parseInt(tributeTokenPrice));
 
     //TODO: check msg.sender ETH balance
   }
@@ -342,6 +343,12 @@ contract('Moloch fork', accounts => {
     })
 
     describe('Investor', () => {
+      let tributeTokenPrice;
+
+      beforeEach(async () => {
+        tributeTokenPrice = await curvedGuildBank.calculatePurchaseReturn(investorProposal.tokenTribute);
+      })
+
       it('Investor happy case', async () => { 
         const initialMolochBalance = await web3.eth.getBalance(moloch.address);   
         await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
@@ -350,7 +357,8 @@ contract('Moloch fork', accounts => {
           initialApplicantBalance: investorProposal.tokenTribute,
           initialMolochTokenBalance: 0,
           initialMolochBalance: initialMolochBalance,
-          ethValue: msgValue
+          ethValue: msgValue,
+          tributeTokenPrice: tributeTokenPrice
         })
       })
       
@@ -373,7 +381,8 @@ contract('Moloch fork', accounts => {
             initialApplicantBalance: investorProposal.tokenTribute,
             initialMolochTokenBalance: 0,
             initialMolochBalance: initialMolochBalance,
-            ethValue: msgValue
+            ethValue: msgValue,
+            tributeTokenPrice: tributeTokenPrice
           })
         })
       })
@@ -387,7 +396,8 @@ contract('Moloch fork', accounts => {
           initialApplicantBalance: investorProposal.tokenTribute,
           initialMolochTokenBalance: 0,
           initialMolochBalance: initialMolochBalance,
-          ethValue: msgValue
+          ethValue: msgValue,
+          tributeTokenPrice: tributeTokenPrice
         })
       })
     });
