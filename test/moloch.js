@@ -157,7 +157,7 @@ contract('Moloch fork', accounts => {
 
     //TODO: check msg.sender ETH balance
   }
-/*
+
   // VERIFY SUBMIT VOTE
   const verifySubmitVote = async (proposal, proposalIndex, memberAddress, expectedVote, options) => {
     const initialYesVotes = options.initialYesVotes ? options.initialYesVotes : 0
@@ -259,7 +259,7 @@ contract('Moloch fork', accounts => {
     const memberByNewDelegateKey = await moloch.memberAddressByDelegateKey(newDelegateKey)
     assert.equal(memberByNewDelegateKey, memberAddress)
   }
-*/
+
   before('deploy contracts', async () => {
     moloch = await Moloch.new(accounts[0], "Curved Moloch", "CM", 17280, 35, 35, 5, 3, 1, 1, 90)
     const guildBankAddress = await moloch.guildBank()
@@ -424,81 +424,81 @@ contract('Moloch fork', accounts => {
     })
     
   })
-  /*
+
   describe('submitVote', () => {
-    beforeEach(async () => {
-      await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
-      await token.approve(moloch.address, 10, { from: summoner })
-      await token.approve(moloch.address, proposal1.tokenTribute, { from: proposal1.applicant })
 
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
-    })
-
-    it('happy case - yes vote', async () => {
-      await moveForwardPeriods(1)
-      await moloch.submitVote(0, 1, { from: summoner })
-      await verifySubmitVote(proposal1, 0, summoner, 1, {
-        expectedMaxSharesAtYesVote: 1
+    describe('investor proposal', () => {
+      beforeEach(async () => {
+        await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
       })
-    })
-
-    it('happy case - no vote', async () => {
-      await moveForwardPeriods(1)
-      await moloch.submitVote(0, 2, { from: summoner })
-      await verifySubmitVote(proposal1, 0, summoner, 2, {})
-    })
-
-    it('require fail - proposal does not exist', async () => {
-      await moveForwardPeriods(1)
-      await moloch.submitVote(1, 1, { from: summoner }).should.be.rejectedWith('proposal does not exist')
-    })
-
-    it('require fail - voting period has not started', async () => {
-      // don't move the period forward
-      await moloch.submitVote(0, 1, { from: summoner }).should.be.rejectedWith('voting period has not started')
-    })
-
-    describe('voting period boundary', () => {
-      it('require fail - voting period has expired', async () => {
-        await moveForwardPeriods(config.VOTING_DURATON_IN_PERIODS + 1)
-        await moloch.submitVote(0, 1, { from: summoner }).should.be.rejectedWith('voting period has expired')
-      })
-
-      it('success - vote 1 period before voting period expires', async () => {
-        await moveForwardPeriods(config.VOTING_DURATON_IN_PERIODS)
-        await moloch.submitVote(0, 1, { from: summoner })
-        await verifySubmitVote(proposal1, 0, summoner, 1, {
+  
+      it('happy case - yes vote', async () => {
+        await moveForwardPeriods(1)
+        await moloch.submitVote(0, 1, { from: creator })
+        await verifySubmitVote(investorProposal, 0, creator, 1, {
           expectedMaxSharesAtYesVote: 1
         })
       })
-    })
-
-    it('require fail - member has already voted', async () => {
-      await moveForwardPeriods(1)
-      await moloch.submitVote(0, 1, { from: summoner })
-      await moloch.submitVote(0, 1, { from: summoner }).should.be.rejectedWith('member has already voted on this proposal')
-    })
-
-    it('require fail - vote must be yes or no', async () => {
-      await moveForwardPeriods(1)
-      // vote null
-      await moloch.submitVote(0, 0, { from: summoner }).should.be.rejectedWith('vote must be either Yes or No')
-      // vote out of bounds
-      await moloch.submitVote(0, 3, { from: summoner }).should.be.rejectedWith('uintVote must be less than 3')
-    })
-
-    it('require fail - proposal has been aborted', async () => {
-      await moloch.abort(0, { from: proposal1.applicant })
-      await moveForwardPeriods(1)
-      await moloch.submitVote(0, 1, { from: summoner }).should.be.rejectedWith('proposal has been aborted')
-    })
-
-    it('modifier - delegate', async () => {
-      await moveForwardPeriods(1)
-      await moloch.submitVote(0, 1, { from: creator }).should.be.rejectedWith('not a delegate')
+      
+      it('happy case - no vote', async () => {
+        await moveForwardPeriods(1)
+        await moloch.submitVote(0, 2, { from: creator })
+        await verifySubmitVote(investorProposal, 0, creator, 2, {})
+      })
+  
+      it('require fail - proposal does not exist', async () => {
+        await moveForwardPeriods(1)
+        await moloch.submitVote(1, 1, { from: creator }).should.be.rejectedWith('proposal does not exist')
+      })
+  
+      it('require fail - voting period has not started', async () => {
+        // don't move the period forward
+        await moloch.submitVote(0, 1, { from: creator }).should.be.rejectedWith('voting period has not started')
+      })
+  
+      describe('voting period boundary', () => {
+        it('require fail - voting period has expired', async () => {
+          await moveForwardPeriods(config.VOTING_DURATON_IN_PERIODS + 1)
+          await moloch.submitVote(0, 1, { from: creator }).should.be.rejectedWith('voting period has expired')
+        })
+  
+        it('success - vote 1 period before voting period expires', async () => {
+          await moveForwardPeriods(config.VOTING_DURATON_IN_PERIODS)
+          await moloch.submitVote(0, 1, { from: creator })
+          await verifySubmitVote(investorProposal, 0, creator, 1, {
+            expectedMaxSharesAtYesVote: 1
+          })
+        })
+      })
+  
+      it('require fail - member has already voted', async () => {
+        await moveForwardPeriods(1)
+        await moloch.submitVote(0, 1, { from: creator })
+        await moloch.submitVote(0, 1, { from: creator }).should.be.rejectedWith('member has already voted on this proposal')
+      })
+  
+      it('require fail - vote must be yes or no', async () => {
+        await moveForwardPeriods(1)
+        // vote null
+        await moloch.submitVote(0, 0, { from: creator }).should.be.rejectedWith('vote must be either Yes or No')
+        // vote out of bounds
+        await moloch.submitVote(0, 3, { from: creator }).should.be.rejectedWith('uintVote must be less than 3')
+      })
+  
+      it('require fail - proposal has been aborted', async () => {
+        await moloch.abort(0, { from: investorProposal.applicant })
+        await moveForwardPeriods(1)
+        await moloch.submitVote(0, 1, { from: creator }).should.be.rejectedWith('proposal has been aborted')
+      })
+  
+      it('modifier - delegate', async () => {
+        await moveForwardPeriods(1)
+        await moloch.submitVote(0, 1, { from: summoner }).should.be.rejectedWith('not a delegate')
+      })
+      
     })
   })
-
+  /*
   describe('processProposal', () => {
     beforeEach(async () => {
       await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
