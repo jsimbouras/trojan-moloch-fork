@@ -197,7 +197,6 @@ contract Moloch {
             proposal.value = msg.value;
             proposal.tokenTribute = tokenTribute;
 
-            address(this).transfer(msg.value);
         }
 
         // ... and append it to the queue
@@ -365,15 +364,13 @@ contract Moloch {
         require(getCurrentPeriod() < proposal.startingPeriod.add(abortWindow), "Moloch::abort - abort window must not have passed");
         require(!proposal.aborted, "Moloch::abort - proposal must not have already been aborted");
 
-        uint256 tokensToAbort = proposal.tokenTribute;
-        proposal.tokenTribute = 0;
+        if((proposal.depositedETH == true) && (proposal.value > 0)) {
+            uint256 ethToAbort = proposal.value;
+            proposal.value = 0;
+            proposal.applicant.transfer(ethToAbort);
+        }
+        
         proposal.aborted = true;
-
-        // return all tokens to the applicant
-        require(
-            guildBank.transfer(proposal.applicant, tokensToAbort),
-            "Moloch::processProposal - failed to return tribute to applicant"
-        );
 
         emit Abort(proposalIndex, msg.sender);
     }
