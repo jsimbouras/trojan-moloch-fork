@@ -648,68 +648,65 @@ contract('Moloch fork', accounts => {
     })
     
   })
-  /*
+  
   describe('ragequit', () => {
     beforeEach(async () => {
-      await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
-      await token.approve(moloch.address, 10, { from: summoner })
-      await token.approve(moloch.address, proposal1.tokenTribute, { from: proposal1.applicant })
-
-      await moloch.submitProposal(proposal1.applicant, proposal1.tokenTribute, proposal1.sharesRequested, proposal1.details, { from: summoner })
+      await moloch.submitProposal(investorProposal.tokenTribute, investorProposal.sharesRequested, investorProposal.details, { from: investorProposal.applicant, value: msgValue })
 
       await moveForwardPeriods(1)
-      await moloch.submitVote(0, 1, { from: summoner })
+      await moloch.submitVote(0, 1, { from: creator })
 
       await moveForwardPeriods(config.VOTING_DURATON_IN_PERIODS)
       await moveForwardPeriods(config.GRACE_DURATON_IN_PERIODS)
     })
 
     it('happy case', async () => {
-      await moloch.processProposal(0)
-      await moloch.ragequit(1, { from: summoner })
+      await moloch.processProposal(0, { from: processor })
+
+      let molochTokenBalance = await curvedGuildBank.balanceOf(moloch.address)
+      console.log("Moloch token balance before: ", molochTokenBalance.toNumber())
+
+      console.log("Shares to burn: ", 1);
+      console.log("Total shares: ", parseInt(await moloch.totalShares()));
+
+      await moloch.ragequit(1, { from: creator })
 
       const totalShares = await moloch.totalShares()
-      assert.equal(totalShares, proposal1.sharesRequested)
+      assert.equal(totalShares, investorProposal.sharesRequested)
 
-      const summonerData = await moloch.members(summoner)
+      const summonerData = await moloch.members(creator)
       assert.equal(summonerData.shares, 0)
       assert.equal(summonerData.exists, true)
       assert.equal(summonerData.highestIndexYesVote, 0)
 
-      // can divide tokenTribute by 2 because 2 shares
-      const summonerBalance = await token.balanceOf(summoner)
-      const expectedBalance = initSummonerBalance - config.PROCESSING_REWARD + (proposal1.tokenTribute / 2)
-      assert.equal(+summonerBalance.toString(), expectedBalance)
+      molochTokenBalance = await curvedGuildBank.balanceOf(moloch.address)
+      console.log("Moloch token balance after: ", molochTokenBalance.toNumber())
 
-      const molochBalance = await token.balanceOf(moloch.address)
-      assert.equal(molochBalance, 0)
-
-      // guild bank has the other half of the funds
-      const guildBankBalance = await token.balanceOf(guildBank.address)
-      assert.equal(guildBankBalance, proposal1.tokenTribute / 2)
+      const summonerTokenBalance = await curvedGuildBank.balanceOf(creator)
+      console.log("Summoner token balance: ", summonerTokenBalance.toNumber())
     })
-
+    
     it('require fail - insufficient shares', async () => {
-      await moloch.processProposal(0)
-      await moloch.ragequit(2, { from: summoner }).should.be.rejectedWith('insufficient shares')
+      await moloch.processProposal(0, { from: processor })
+      await moloch.ragequit(2, { from: creator }).should.be.rejectedWith('insufficient shares')
     })
 
     it('require fail - cant ragequit yet', async () => {
       // skip processing the proposal
-      await moloch.ragequit(1, { from: summoner }).should.be.rejectedWith('cant ragequit until highest index proposal member voted YES on is processed')
+      await moloch.ragequit(1, { from: creator }).should.be.rejectedWith('cant ragequit until highest index proposal member voted YES on is processed')
     })
 
     it('modifier - member - non-member', async () => {
-      await moloch.processProposal(0)
-      await moloch.ragequit(1, { from: creator }).should.be.rejectedWith('not a member')
+      await moloch.processProposal(0, { from: processor })
+      await moloch.ragequit(1, { from: summoner }).should.be.rejectedWith('not a member')
     })
 
     it('modifier - member - member ragequit', async () => {
       await moloch.processProposal(0)
-      await moloch.ragequit(1, { from: summoner })
-      await moloch.ragequit(1, { from: summoner }).should.be.rejectedWith('not a member')
+      await moloch.ragequit(1, { from: creator })
+      await moloch.ragequit(1, { from: creator }).should.be.rejectedWith('not a member')
     })
-
+    /*
     it('edge case - weth sent to guild bank can be withdrawn via ragequit', async () => {
       await moloch.processProposal(0)
 
@@ -726,11 +723,11 @@ contract('Moloch fork', accounts => {
       const guildBankBalance2 = await token.balanceOf(guildBank.address)
       assert.equal(guildBankBalance2, guildBankBalance1 / 2)
     })
-
+    */
     // TODO how might guildbank withdrawal fail?
     // - it could uint256 overflow
   })
-
+  /*
   describe('abort', () => {
     beforeEach(async () => {
       await token.transfer(proposal1.applicant, proposal1.tokenTribute, { from: creator })
