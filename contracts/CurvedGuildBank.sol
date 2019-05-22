@@ -76,7 +76,7 @@ contract CurvedGuildBank is BondingCurve, Ownable {
     }
 
     function withdraw(address receiver, uint256 shares, uint256 totalShares) public onlyOwner returns (bool) {
-        uint256 amount = balanceOf(address(this)).mul(shares).div(totalShares);
+        uint256 amount = balanceOf(msg.sender).mul(shares).div(totalShares);
         emit Withdrawal(receiver, amount);
         return transfer(receiver, amount);
     }
